@@ -24,6 +24,14 @@ use dynamo_runtime::pipeline::RouterMode as RuntimeRouterMode;
 #[derive(clap::Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct Flags {
+    /// Input source. in=[http|text|dyn://<path>|batch:<folder>]
+    #[arg(index = 1)]
+    pub input: Option<String>,
+
+    /// Output destination. out=ENGINE_LIST|dyn
+    #[arg(index = 2)]
+    pub output: Option<String>,
+
     /// The model. The options depend on the engine.
     ///
     /// The full list - only mistralrs supports all three currently:
@@ -31,7 +39,7 @@ pub struct Flags {
     /// - Full path of a checked out Hugging Face repository containing safetensor files
     /// - Name of a Hugging Face repository, e.g 'google/flan-t5-small'. The model will be
     ///   downloaded and cached.
-    #[arg(index = 1)]
+    #[arg(index = 3)]
     pub model_path_pos: Option<PathBuf>,
 
     // `--model-path`. The one above is `dynamo-run <positional-model-path>`
@@ -149,7 +157,7 @@ pub struct Flags {
 
     /// Everything after a `--`.
     /// These are the command line arguments to the python engine when using `pystr` or `pytok`.
-    #[arg(index = 2, last = true, hide = true, allow_hyphen_values = true)]
+    #[arg(index = 4, last = true, hide = true, allow_hyphen_values = true)]
     pub last: Vec<String>,
 }
 
