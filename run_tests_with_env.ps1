@@ -1,4 +1,5 @@
-# PowerShell script to set PYTHONPATH and run pytest with proper environment
+# PowerShell script to set PYTHONPATH and run tests with environment configured
 
-$env:PYTHONPATH = "$PWD\deploy\sdk\src;$PWD\components\planner\src;$PWD\lib\runtime\src"
-pytest --maxfail=1 --disable-warnings -q
+$env:PYTHONPATH = "$(Resolve-Path .)\deploy\sdk\src;$(Resolve-Path .)\dynamo\components\planner\src;$(Resolve-Path .)\lib\llm;$(Resolve-Path .)\lib\runtime;$(Resolve-Path .)\lib\tokens"
+
+pytest --disable-warnings -q

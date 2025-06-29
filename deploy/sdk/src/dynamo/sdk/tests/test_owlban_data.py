@@ -1,6 +1,8 @@
-import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+import sys
+
+# Adjust PYTHONPATH to include root project directory for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../..")))
 
 import unittest
 
@@ -19,7 +21,6 @@ class TestOwlbanData(unittest.TestCase):
     def test_banking_data_loaded(self):
         banking = self.owlban_data.get_banking_data()
         self.assertIsInstance(banking, dict)
-        # Adjusted to check keys in the root dictionary since data is nested
         self.assertTrue(banking)  # Ensure banking data is not empty
         self.assertIn("routing_numbers", banking)
         self.assertIn("account_numbers", banking)
