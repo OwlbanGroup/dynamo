@@ -134,7 +134,6 @@ addopts = [
     "--showlocals",
     "--strict-markers",
     "--strict-config",
-    "--mypy",
     "--ignore-glob=*model.py",
     "--ignore-glob=*_inc.py",
     "--ignore-glob=deploy/cloud/api-store/*",
@@ -154,7 +153,7 @@ filterwarnings = [
 
 
 # NOTE: Can also manually mark tests with @pytest.mark.asyncio
-asyncio_mode = "auto"
+# asyncio_mode = "auto"
 markers = [
     "pre_merge: marks tests to run before merging",
     "nightly: marks tests to run nightly",

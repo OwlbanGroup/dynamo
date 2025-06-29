@@ -364,50 +364,44 @@ def test_serve_deployment(deployment_graph_test, request, runtime_services):
                 else payload.payload_completions
             )
 
-            # We can skip this
-            while (
-                time.time() - start_time < deployment_graph.timeout
-                and first_success_pending
-            ):
-                elapsed = time.time() - start_time
+            # Dynamic readiness check replacing delayed_start hack
+            while time.time() - start_time < deployment_graph.timeout:
                 try:
                     response = requests.post(
                         url,
                         json=request_body,
-                        timeout=deployment_graph.timeout - elapsed,
+                        timeout=deployment_graph.timeout - (time.time() - start_time),
                     )
+                    if response.status_code == 200:
+                        check_response(response, response_handler)
+                        first_success_pending = False
+                        break
+                    elif response.status_code == 500:
+                        error = response.json().get("error", "")
+                        if "no instances" in error:
+                            logger.warning("Retrying due to no instances available")
+                            time.sleep(retry_delay)
+                            continue
+                    elif response.status_code == 404:
+                        error = response.json().get("error", "")
+                        if "Model not found" in error:
+                            logger.warning("Retrying due to model not found")
+                            time.sleep(retry_delay)
+                            continue
+                    else:
+                        logger.error(
+                            "Service returned status code %s: %s",
+                            response.status_code,
+                            response.text,
+                        )
+                        pytest.fail(
+                            "Service returned status code %s: %s"
+                            % (response.status_code, response.text)
+                        )
                 except (requests.RequestException, requests.Timeout) as e:
                     logger.warning("Retrying due to Request failed: %s", e)
                     time.sleep(retry_delay)
                     continue
-                logger.info("Response%r", response)
-                if response.status_code == 500:
-                    error = response.json().get("error", "")
-                    if "no instances" in error:
-                        logger.warning("Retrying due to no instances available")
-                        time.sleep(retry_delay)
-                        continue
-                if response.status_code == 404:
-                    error = response.json().get("error", "")
-                    if "Model not found" in error:
-                        logger.warning("Retrying due to model not found")
-                        time.sleep(retry_delay)
-                        continue
-                # Process the response
-                if response.status_code != 200:
-                    logger.error(
-                        "Service returned status code %s: %s",
-                        response.status_code,
-                        response.text,
-                    )
-                    pytest.fail(
-                        "Service returned status code %s: %s"
-                        % (response.status_code, response.text)
-                    )
-                else:
-                    check_response(response, response_handler)
-                    first_success_pending = False
-                    break
             else:
                 if first_success_pending:
                     logger.error(

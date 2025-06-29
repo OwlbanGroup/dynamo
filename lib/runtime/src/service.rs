@@ -13,21 +13,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO - refactor this entire module
-//
-// we want to carry forward the concept of live vs ready for the components
-// we will want to associate the components cancellation token with the
-// component's "service state"
+// Refactored service module to track live vs ready states and associate cancellation tokens
 
 use crate::{error, transports::nats, utils::stream, Result};
-
 use async_nats::Message;
 use async_stream::try_stream;
 use bytes::Bytes;
 use derive_getters::Dissolve;
 use futures::stream::{StreamExt, TryStreamExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Notify;
+use tokio_util::sync::CancellationToken;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceState {
+    Live,
+    Ready,
+    Stopped,
+}
+
+pub struct ServiceComponent {
+    pub name: String,
+    pub state: ServiceState,
+    pub cancel_token: CancellationToken,
+    pub ready_notify: Arc<Notify>,
+}
+
+impl ServiceComponent {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            state: ServiceState::Live,
+            cancel_token: CancellationToken::new(),
+            ready_notify: Arc::new(Notify::new()),
+        }
+    }
+
+    pub fn mark_ready(&mut self) {
+        self.state = ServiceState::Ready;
+        self.ready_notify.notify_waiters();
+    }
+
+    pub fn mark_stopped(&mut self) {
+        self.state = ServiceState::Stopped;
+        self.cancel_token.cancel();
+    }
+
+    pub async fn wait_ready(&self) {
+        if self.state == ServiceState::Ready {
+            return;
+        }
+        self.ready_notify.notified().await;
+    }
+}
 
 pub struct ServiceClient {
     nats_client: nats::Client,
@@ -36,6 +76,53 @@ pub struct ServiceClient {
 impl ServiceClient {
     pub fn new(nats_client: nats::Client) -> Self {
         ServiceClient { nats_client }
+    }
+
+    pub async fn unary(
+        &self,
+        subject: impl Into<String>,
+        payload: impl Into<Bytes>,
+    ) -> Result<Message> {
+        let response = self
+            .nats_client
+            .client()
+            .request(subject.into(), payload.into())
+            .await?;
+        Ok(response)
+    }
+
+    pub async fn collect_services(
+        &self,
+        service_name: &str,
+        timeout: Duration,
+    ) -> Result<ServiceSet> {
+        let sub = self.nats_client.scrape_service(service_name).await?;
+        if timeout.is_zero() {
+            tracing::warn!("collect_services: timeout is zero");
+        }
+        if timeout > Duration::from_secs(10) {
+            tracing::warn!("collect_services: timeout is greater than 10 seconds");
+        }
+        let deadline = tokio::time::Instant::now() + timeout;
+
+        let mut services = vec![];
+        let mut s = stream::until_deadline(sub, deadline);
+        while let Some(message) = s.next().await {
+            if message.payload.is_empty() {
+                tracing::trace!(service_name, "collect_services: empty payload from nats");
+                continue;
+            }
+            let info = serde_json::from_slice::<ServiceInfo>(&message.payload);
+            match info {
+                Ok(info) => services.push(info),
+                Err(err) => {
+                    let payload = String::from_utf8_lossy(&message.payload);
+                    tracing::debug!(%err, service_name, %payload, "error decoding service info");
+                }
+            }
+        }
+
+        Ok(ServiceSet { services })
     }
 }
 
@@ -74,21 +161,14 @@ impl EndpointInfo {
     }
 }
 
-// TODO: This is _really_ close to the async_nats::service::Stats object,
-// but it's missing a few fields like "name", so use a temporary struct
-// for easy deserialization. Ideally, this type already exists or can
-// be exposed in the library somewhere.
-/// Stats structure returned from NATS service API
 #[derive(Debug, Clone, Serialize, Deserialize, Dissolve)]
 pub struct Metrics {
-    // Standard NATS Service API fields
     pub average_processing_time: f64,
     pub last_error: String,
     pub num_errors: u64,
     pub num_requests: u64,
     pub processing_time: u64,
     pub queue_group: String,
-    // Field containing custom stats handler data
     pub data: serde_json::Value,
 }
 
@@ -98,67 +178,8 @@ impl Metrics {
     }
 }
 
-impl ServiceClient {
-    pub async fn unary(
-        &self,
-        subject: impl Into<String>,
-        payload: impl Into<Bytes>,
-    ) -> Result<Message> {
-        let response = self
-            .nats_client
-            .client()
-            .request(subject.into(), payload.into())
-            .await?;
-        Ok(response)
-    }
-
-    pub async fn collect_services(
-        &self,
-        service_name: &str,
-        timeout: Duration,
-    ) -> Result<ServiceSet> {
-        let sub = self.nats_client.scrape_service(service_name).await?;
-        if timeout.is_zero() {
-            tracing::warn!("collect_services: timeout is zero");
-        }
-        if timeout > Duration::from_secs(10) {
-            tracing::warn!("collect_services: timeout is greater than 10 seconds");
-        }
-        let deadline = tokio::time::Instant::now() + timeout;
-
-        let mut services = vec![];
-        let mut s = stream::until_deadline(sub, deadline);
-        while let Some(message) = s.next().await {
-            if message.payload.is_empty() {
-                // Expected while we wait for KV metrics in worker to start
-                tracing::trace!(service_name, "collect_services: empty payload from nats");
-                continue;
-            }
-            let info = serde_json::from_slice::<ServiceInfo>(&message.payload);
-            match info {
-                Ok(info) => services.push(info),
-                Err(err) => {
-                    let payload = String::from_utf8_lossy(&message.payload);
-                    tracing::debug!(%err, service_name, %payload, "error decoding service info");
-                }
-            }
-        }
-
-        Ok(ServiceSet { services })
-    }
-}
-
-impl ServiceSet {
-    pub fn into_endpoints(self) -> impl Iterator<Item = EndpointInfo> {
-        self.services
-            .into_iter()
-            .flat_map(|s| s.endpoints.into_iter())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
