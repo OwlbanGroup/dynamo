@@ -180,27 +180,27 @@ uv pip install -e .
 export PYTHONPATH=$PYTHONPATH:/workspace/deploy/sdk/src:/workspace/components/planner/src
 ```
 
+## Integration with OwlbanGroup Platform
 
-#### Conda Environment
+This project now integrates the OwlbanGroup Node.js web platform as a separate service.
 
-Alternately, you can use a conda environment
+### Setup and Deployment
 
-```bash
-conda activate <ENV_NAME>
+- The OwlbanGroup platform is located in `server/external/owlbangroup.io`.
+- Use the provided `docker-compose.yml` to run both Dynamo and OwlbanGroup services.
+- Deployment scripts `deploy.sh` (Linux/macOS) and `deploy.ps1` (Windows PowerShell) build and run both services.
 
-pip install nixl # Or install https://github.com/ai-dynamo/nixl from source
+### Running the Integrated System
 
-cargo build --release
+1. Ensure Docker and Docker Compose are installed.
+2. Run the deployment script for your platform:
+   - Linux/macOS: `./deploy.sh`
+   - Windows PowerShell: `.\deploy.ps1`
+3. The Dynamo service will be available on port 8000.
+4. The OwlbanGroup platform service will be available on port 3000.
 
-# To install ai-dynamo-runtime from source
-cd lib/bindings/python
-pip install .
+### Further Integration
 
-cd ../../../
-pip install ".[all]"
-
-# To test
-docker compose -f deploy/metrics/docker-compose.yml up -d
-cd examples/llm
-dynamo serve graphs.agg:Frontend -f configs/agg.yaml
-```
+- Configure environment variables as needed in `.env` files.
+- Implement API communication between Dynamo and OwlbanGroup platform if required.
+- Update tests and documentation accordingly.

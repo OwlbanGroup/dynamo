@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  dynamo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  # Adjust Dynamo service port as needed
+    environment:
+      - ENV_VAR_EXAMPLE=value  # Add necessary environment variables for Dynamo
+    restart: always
+
+  owlbangroup:
+    build:
+      context: ./server/external/owlbangroup.io
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: always
