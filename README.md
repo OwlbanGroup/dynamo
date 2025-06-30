@@ -204,3 +204,13 @@ This project now integrates the OwlbanGroup Node.js web platform as a separate s
 - Configure environment variables as needed in `.env` files.
 - Implement API communication between Dynamo and OwlbanGroup platform if required.
 - Update tests and documentation accordingly.
+
+## Deployment Verification
+
+A deployment verification script `deploy_verification.sh` is provided to test that the Dynamo and OwlbanGroup services are running and reachable on their respective ports.
+
+Run the script after deployment:
+
+```bash
+./deploy_verification.sh
+```

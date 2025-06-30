@@ -9,6 +9,16 @@ if (Test-Path .env) {
     }
 }
 
+# Build release binaries before Docker build
+Write-Host "Building release binaries..."
+cargo build --release
+
+Write-Host "Copying binaries to deployment SDK directory..."
+New-Item -ItemType Directory -Force -Path deploy/sdk/src/dynamo/sdk/cli/bin | Out-Null
+Copy-Item -Path target/release/http -Destination deploy/sdk/src/dynamo/sdk/cli/bin/
+Copy-Item -Path target/release/llmctl -Destination deploy/sdk/src/dynamo/sdk/cli/bin/
+Copy-Item -Path target/release/dynamo-run -Destination deploy/sdk/src/dynamo/sdk/cli/bin/
+
 # Build Docker images for all services
 docker-compose build
 

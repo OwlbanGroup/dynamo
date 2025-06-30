@@ -149,4 +149,17 @@ curl localhost:8000/v1/chat/completions \
 
 ---
 
+
+## 9. Deployment Verification
+
+After deploying the services, run the provided deployment verification script to ensure services are reachable:
+
+```bash
+./deploy_verification.sh
+```
+
+This script checks that the Dynamo service is reachable on port 8000 and the OwlbanGroup service on port 3000.
+
+---
+
 This completes the deployment preparation for the NVIDIA Dynamo project.
